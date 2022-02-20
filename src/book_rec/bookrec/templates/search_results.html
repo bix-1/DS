@@ -1,0 +1,35 @@
+<a href="/" style="text-decoration:none">
+    <h1>Search</h1>
+</a>
+
+<form method="GET" action="">
+    <label for="search">Search book title:</label><br>
+    <input type="search" id="search" name="search" placeholder="Book title">
+    <input type="submit" value="Search">
+</form>
+
+<table>
+    {% for book in object_list %}
+    <tr>
+        <td><img src={{book.image_m}}></td>
+        <td>
+            <table>
+                <tr>
+                    <td>
+                        <h2>{{ book.title }}</h2>
+                    </td>
+                </tr>
+                <tr>
+                    <td>by <i>{{ book.author }}</i></td>
+                </tr>
+                <tr>
+                    <td>Rating: {{ book.rating|stringformat:".1f" }} ({{ book.count }})</td>
+                </tr>
+                <tr>
+                    <td><a href="./?bookrec={{ book.title }}"><i>See similiar books</i></a></td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
