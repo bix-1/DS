@@ -115,37 +115,6 @@ class DataDownloader:
         # rename columns
         return df.rename(columns=cols[table])
 
-    def fetch_to_csv(self, force_download=False, ratings_in="BX-Book-Ratings.csv", ratings_out="data/book-ratings.csv", books_in="BX-Books.csv", books_out="data/books.csv"):
-        """
-        Fetches data on book ratings to specified files.
-
-        Parameters
-        ----------
-        force_download: bool
-            force download of source zipfile
-        ratings_in: str
-            source filename of ratings datafile
-        ratings_out: str
-            destination filename of ratings datafile
-        books_in: str
-            source filename of books datafile
-        books_out: str
-            destination filename of books datafile
-        """
-
-        # download data if necessary
-        if force_download or not os.path.isfile(self.datafile):
-            self.download_data()
-
-        # fetch data
-        ratings, books = self.get_datasets(self.datafile, ratings_in, books_in)
-
-        # write to CSV
-        ratings.to_csv(ratings_out, index=False, sep=";",
-                       quoting=QUOTE_ALL, escapechar="\\", encoding="cp1251")
-        books.to_csv(books_out, index=False, sep=";",
-                     quoting=QUOTE_ALL, escapechar="\\", encoding="cp1251")
-
     def get_datasets(self, zipfile, ratings_filename, books_filename):
         """
         Returns datasets from given zipfile.
@@ -179,6 +148,37 @@ class DataDownloader:
 
         return ratings, books
 
+    def fetch_to_csv(self, force_download=False, ratings_in="BX-Book-Ratings.csv", ratings_out="data/book-ratings.csv", books_in="BX-Books.csv", books_out="data/books.csv"):
+        """
+        Fetches data on book ratings to specified files.
+
+        Parameters
+        ----------
+        force_download: bool
+            force download of source zipfile
+        ratings_in: str
+            source filename of ratings datafile
+        ratings_out: str
+            destination filename of ratings datafile
+        books_in: str
+            source filename of books datafile
+        books_out: str
+            destination filename of books datafile
+        """
+
+        # download data if necessary
+        if force_download or not os.path.isfile(self.datafile):
+            self.download_data()
+
+        # fetch data
+        ratings, books = self.get_datasets(self.datafile, ratings_in, books_in)
+
+        # write to CSV
+        ratings.to_csv(ratings_out, index=False, sep=";",
+                       quoting=QUOTE_ALL, escapechar="\\", encoding="cp1251")
+        books.to_csv(books_out, sep=";", quoting=QUOTE_ALL,
+                     escapechar="\\", encoding="cp1251")
+
     def fetch_to_sqlite(self, force_download=False, ratings_in="BX-Book-Ratings.csv", books_in="BX-Books.csv", out="db.sqlite3"):
         """
         Fetches data on book ratings to local SQLite DB file.
@@ -210,4 +210,4 @@ class DataDownloader:
 if __name__ == "__main__":
     dd = DataDownloader()
     dd.fetch_to_csv()
-    dd.fetch_to_sqlite(out="../db.sqlite3")
+    dd.fetch_to_sqlite()
