@@ -10,8 +10,12 @@ class SearchView(ListView):
     def get_queryset(self):
         # search book title
         if "search" in self.request.GET:
-            query = self.request.GET.get("search")
-            return Book.objects.filter(title__icontains=query).order_by("-count") if query else None
+            title = self.request.GET.get("search")
+            if not title:
+                return None
+
+            books = Book.objects.filter(title__icontains=title).prefetch_related("rating_set")
+            return sorted(books, key=lambda x: x.count(), reverse=True)
 
         # get book recommendations
         elif "bookrec" in self.request.GET:

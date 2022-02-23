@@ -77,7 +77,7 @@ class DataDownloader:
                 return pd.read_csv(text, encoding="cp1251",
                                    escapechar="\\", quotechar="\"", sep=";")
 
-    def fix_columns(self, df, con, table):
+    def fix_columns(self, df, table):
         """
         Rename columns of dataframe in accordance with provided table
 
@@ -85,8 +85,6 @@ class DataDownloader:
         ----------
         df: pd.DataFrame
             dataframe whose columns are to be renamed
-        con
-            connection to SQLite DB
         table: str
             name of respective table
 
@@ -96,13 +94,26 @@ class DataDownloader:
             dataframe with fixed column names
         """
 
-        # fetch column names
-        cursor = con.execute('SELECT * FROM ' + table)
-        cols = [description[0] for description in cursor.description]
+        cols = {
+            "book": {
+                "ISBN": "isbn",
+                "Book-Title": "title",
+                "Book-Author": "author",
+                "Year-Of-Publication": "year",
+                "Publisher": "publisher",
+                "Image-URL-S": "image_s",
+                "Image-URL-M": "image_m",
+                "Image-URL-L": "image_l",
+            },
+            "rating": {
+                "User-ID": "userID",
+                "ISBN": "isbn",
+                "Book-Rating": "rating",
+            }}
         # fix index name
         df.index.name = "id"
         # rename columns
-        return df.rename(columns=dict(zip(df.columns, cols[1:])))
+        return df.rename(columns=cols[table])
 
     def fetch_to_csv(self, force_download=False, ratings_in="BX-Book-Ratings.csv", ratings_out="data/book-ratings.csv", books_in="BX-Books.csv", books_out="data/books.csv"):
         """
@@ -127,16 +138,46 @@ class DataDownloader:
             self.download_data()
 
         # fetch data
-        ratings, books = [self.fetch_data(self.datafile, src)
-                          for src in [ratings_in, books_in]]
-        # validate ISBNs
-        ratings = ratings[ratings.apply(
-            lambda x: is_isbn10(x["ISBN"]), axis=1)]
+        ratings, books = self.get_datasets(self.datafile, ratings_in, books_in)
+
         # write to CSV
         ratings.to_csv(ratings_out, index=False, sep=";",
                        quoting=QUOTE_ALL, escapechar="\\", encoding="cp1251")
         books.to_csv(books_out, index=False, sep=";",
                      quoting=QUOTE_ALL, escapechar="\\", encoding="cp1251")
+
+    def get_datasets(self, zipfile, ratings_filename, books_filename):
+        """
+        Returns datasets from given zipfile.
+
+        Parameters
+        ----------
+        zipfile: str
+            filename of zipfile
+        ratings_filename: str
+            filename of ratings file inside zipfile
+        books_filename: str
+            filename of books file inside zipfile
+
+        Returns
+        -------
+        ratings: pd.DataFrame
+            rating data
+        books: pd.DataFrame
+            book data
+        """
+
+        # fetch data
+        ratings, books = [self.fetch_data(self.datafile, src)
+                          for src in [ratings_filename, books_filename]]
+        # validate ISBNs
+        ratings = ratings[ratings.apply(
+            lambda x: is_isbn10(x["ISBN"]), axis=1)]
+        # fix column names
+        ratings = self.fix_columns(ratings, "rating")
+        books = self.fix_columns(books, "book").set_index("isbn")
+
+        return ratings, books
 
     def fetch_to_sqlite(self, force_download=False, ratings_in="BX-Book-Ratings.csv", books_in="BX-Books.csv", out="db.sqlite3"):
         """
@@ -153,39 +194,20 @@ class DataDownloader:
         out: str
             filename of local SQLite DB file
         """
-
         # download data if necessary
         if force_download or not os.path.isfile(self.datafile):
             self.download_data()
 
-        # fetch data
-        ratings, books = [self.fetch_data(self.datafile, src)
-                          for src in [ratings_in, books_in]]
-        # validate ISBNs
-        ratings = ratings[ratings.apply(
-            lambda x: is_isbn10(x["ISBN"]), axis=1)]
-        # fix column names
-        with sqlite3.connect(out) as con:
-            ratings = self.fix_columns(ratings, con, "bookrec_rating")
-            books = self.fix_columns(books, con, "bookrec_book")
-
-        # # get book ratings
-        means = ratings.groupby(
-            "isbn")["rating"].mean().to_frame().reset_index()
-        # books["rating"] = books["isbn"].map(means)
-        books["count"] = books["isbn"].map(ratings["isbn"].value_counts())
-        books["count"] = books["count"].fillna(0).astype(int)
-        books = books.merge(means, on="isbn", how="left").fillna(0)
+        ratings, books = self.get_datasets(self.datafile, ratings_in, books_in)
 
         # export to DB
         with sqlite3.connect(out) as con:
-            books.to_sql("bookrec_book", con,
-                         if_exists="replace", index_label="id")
+            books.to_sql("bookrec_book", con, if_exists="replace")
             ratings.to_sql("bookrec_rating", con,
                            if_exists="replace", index_label="id")
 
 
 if __name__ == "__main__":
     dd = DataDownloader()
-    # dd.fetch_to_csv()
+    dd.fetch_to_csv()
     dd.fetch_to_sqlite(out="../db.sqlite3")

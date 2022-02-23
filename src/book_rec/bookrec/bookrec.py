@@ -34,11 +34,11 @@ class Model:
         """
 
         self.dataset = pd.merge(
-            ratings[ratings["Book-Rating"] != 0], books, on=["ISBN"])
+            ratings[ratings["rating"] != 0], books, on=["isbn"])
         self.dataset = self.dataset.apply(
             lambda x: x.str.lower() if(x.dtype == "object") else x)
 
-    def load_csv(self, ratings_file="data/book-ratings.csv", books_file="data/books.csv"):
+    def load_csv(self, ratings_file="data/ratings.csv", books_file="data/books.csv"):
         """
         Initialise dataset from csv file
 
@@ -57,13 +57,13 @@ class Model:
 
         # load ratings
         ratings = pd.read_csv(ratings_file, encoding="cp1251", sep=";")
-        ratings = ratings[ratings["Book-Rating"] != 0]
+        ratings = ratings[ratings["rating"] != 0]
         # load books
         books = pd.read_csv(books_file, encoding="cp1251",
                             escapechar="\\", quotechar="\"", sep=";")
 
         # get dataset of books and their respective ratings
-        self.dataset = pd.merge(ratings, books, on=["ISBN"])
+        self.dataset = pd.merge(ratings, books, on=["isbn"])
         self.dataset = self.dataset.apply(
             lambda x: x.str.lower() if(x.dtype == "object") else x)
 
@@ -77,14 +77,14 @@ class Model:
             book title for prediction
         """
 
-        author = self.dataset["Book-Author"][self.dataset["Book-Title"]
-                                             == title][:1].squeeze()
+        author = self.dataset["author"][self.dataset["title"]
+                                        == title][:1].squeeze()
         # get users that reviewed the book
-        book_reviewers = self.dataset["User-ID"][(self.dataset["Book-Title"] == title) & (
-            self.dataset["Book-Author"] == author)].unique()
+        book_reviewers = self.dataset["userID"][(self.dataset["title"] == title) & (
+            self.dataset["author"] == author)].unique()
 
         # final dataset -- relevant reviews (by reviewers of the given book)
-        return self.dataset[(self.dataset["User-ID"].isin(book_reviewers))]
+        return self.dataset[(self.dataset["userID"].isin(book_reviewers))]
 
     def get_relevant_books(self, dataset, threshold=8):
         """
@@ -104,17 +104,16 @@ class Model:
         """
 
         # Number of ratings per book
-        rating_counts = dataset.groupby(
-            ["Book-Title"]).agg("count").reset_index()
+        rating_counts = dataset.groupby(["title"]).agg("count").reset_index()
         # filter out books with low number of reviews
         threshold = 8
         books_to_compare = rating_counts[
-            "Book-Title"][rating_counts["User-ID"] >= threshold].unique()
+            "title"][rating_counts["userID"] >= threshold].unique()
         if books_to_compare.size < 1:
             return pd.DataFrame()
         # create dataset
         return dataset[[
-            "User-ID", "Book-Rating", "Book-Title", "ISBN"]][dataset["Book-Title"].isin(books_to_compare)]
+            "userID", "rating", "title", "isbn"]][dataset["title"].isin(books_to_compare)]
 
     def predict(self, title, max_entries=10):
         """
@@ -134,7 +133,7 @@ class Model:
         """
 
         title = title.lower()
-        if title not in self.dataset["Book-Title"].values:
+        if title not in self.dataset["title"].values:
             print("No prediction available")
             return pd.DataFrame()
 
@@ -147,10 +146,10 @@ class Model:
 
         # get mean rating per each book and reviewer
         ratings_data_raw_nodup = ratings_data_raw.groupby(
-            ["User-ID", "Book-Title"])["Book-Rating"].mean().to_frame().reset_index()
+            ["userID", "title"])["rating"].mean().to_frame().reset_index()
         # create correlation dataset
         corr_dataset = ratings_data_raw_nodup.pivot(
-            index="User-ID", columns="Book-Title", values="Book-Rating")
+            index="userID", columns="title", values="rating")
         # take out the given book from the correlation dataset
         other_books = corr_dataset.loc[:, corr_dataset.columns != title]
 
@@ -160,12 +159,12 @@ class Model:
         correlations = [corr_dataset[title].corr(
             other_books[t]) for t in book_titles]
         # compute average rating
-        tabs = [ratings_data_raw[ratings_data_raw["Book-Title"] ==
-                                 t].groupby(ratings_data_raw["Book-Title"]).mean() for t in book_titles]
-        avgrating = [tab["Book-Rating"].min() for tab in tabs]
+        tabs = [ratings_data_raw[ratings_data_raw["title"] ==
+                                 t].groupby(ratings_data_raw["title"]).mean() for t in book_titles]
+        avgrating = [tab["rating"].min() for tab in tabs]
 
         # final dataframe of all correlation of each book
-        isbns = [ratings_data_raw["ISBN"][ratings_data_raw["Book-Title"]
+        isbns = [ratings_data_raw["isbn"][ratings_data_raw["title"]
                                           == t].iloc[0] for t in book_titles]
         df = pd.DataFrame(list(zip(isbns, book_titles, correlations, avgrating)), columns=[
                           "isbn", "book", "corr", "avg_rating"])
