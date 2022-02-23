@@ -86,7 +86,7 @@ class Model:
         # final dataset -- relevant reviews (by reviewers of the given book)
         return self.dataset[(self.dataset["userID"].isin(book_reviewers))]
 
-    def get_relevant_books(self, dataset, threshold=8):
+    def get_relevant_books(self, title, threshold=8):
         """
         Create book review dataset with reviews above specified threshold.
 
@@ -102,6 +102,8 @@ class Model:
         df: pd.DataFrame
             book review dataframe
         """
+
+        dataset = self.get_relevant_reviews(title)
 
         # Number of ratings per book
         rating_counts = dataset.groupby(["title"]).agg("count").reset_index()
@@ -138,8 +140,7 @@ class Model:
             return pd.DataFrame()
 
         # create book review dataset
-        dataset = self.get_relevant_reviews(title)
-        ratings_data_raw = self.get_relevant_books(dataset)
+        ratings_data_raw = self.get_relevant_books(title)
         if ratings_data_raw.empty:
             print("No prediction available")
             return pd.DataFrame()
@@ -159,9 +160,8 @@ class Model:
         correlations = [corr_dataset[title].corr(
             other_books[t]) for t in book_titles]
         # compute average rating
-        tabs = [ratings_data_raw[ratings_data_raw["title"] ==
-                                 t].groupby(ratings_data_raw["title"]).mean() for t in book_titles]
-        avgrating = [tab["rating"].min() for tab in tabs]
+        avgrating = [ratings_data_raw[ratings_data_raw["title"] == t].groupby(
+            "title")["rating"].mean().min() for t in book_titles]
 
         # final dataframe of all correlation of each book
         isbns = [ratings_data_raw["isbn"][ratings_data_raw["title"]
